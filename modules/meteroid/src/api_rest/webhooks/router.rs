@@ -62,6 +62,9 @@ async fn handler(
         ConnectorProviderEnum::Pennylane => bail!(
             errors::AdapterWebhookError::ProviderNotSupported("pennylane".to_owned(),)
         ),
+        ConnectorProviderEnum::Taxjar => bail!(
+            errors::AdapterWebhookError::ProviderNotSupported("taxjar".to_owned(),)
+        ),
         ConnectorProviderEnum::Mock => bail!(errors::AdapterWebhookError::ProviderNotSupported(
             "mock".to_owned(),
         )),
