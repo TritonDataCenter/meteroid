@@ -144,7 +144,7 @@ pub enum ConnectorProviderEnum {
     Stripe,
     Pennylane,
     Mock,
-    Taxjar,
+    Kintsugi,
 }
 
 #[derive(o2o, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
