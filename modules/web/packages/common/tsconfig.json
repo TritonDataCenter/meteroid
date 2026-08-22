@@ -1,9 +1,21 @@
 {
     "compilerOptions": {
-      "lib": ["ES2015"],
+      // The previous ES2015 lib only ever "worked" because the deprecation
+      // errors below aborted the dts pass before type checking got this far.
+      // Object.entries needs ES2017 and BigInt (env/preprocessors.ts) needs
+      // ES2020, so ES2020 is the floor. This changes available typings only,
+      // not emitted syntax, which target still governs.
+      "lib": ["ES2020"],
       "module": "ESNext",
       "target": "ES6",
       "moduleResolution": "node",
+      // This package has no "extends", so unlike icons/ui/web-app it never
+      // inherits the silencer in @md/tsconfig/vite.json. Under TypeScript 6
+      // the deprecated baseUrl and moduleResolution=node10 are hard errors
+      // that fail the --dts pass. Note tsup injects baseUrl itself during dts
+      // generation even though it is not set here, so this stays necessary
+      // regardless of what moduleResolution is set to.
+      "ignoreDeprecations": "6.0",
     },
     "include": ["src"],
     "exclude": ["dist", "build", "node_modules"]
