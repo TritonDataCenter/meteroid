@@ -1,0 +1,174 @@
+name: Release artifact
+
+# Builds the deployable tarball consumed by the Ansible `meteroid_artifact`
+# role. Production nodes compile nothing: these binaries link glibc, OpenSSL,
+# libpq and librdkafka, so they are built here on the same distribution release
+# as the deploy targets and shipped whole.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build"
+        required: false
+        default: triton-main
+      prerelease:
+        description: "Mark the release as a prerelease"
+        required: false
+        default: "true"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "${{ github.workflow }}-${{ inputs.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build deploy artifact
+    # Pinned, not ubuntu-latest. The deploy targets run Ubuntu 24.04 and these
+    # binaries are dynamically linked; a runner on a newer glibc would produce
+    # binaries that will not load there.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out the requested ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          # The build runs cargo build scripts and pnpm lifecycle scripts from
+          # the checked-out ref. Don't hand them a credential: GH_TOKEN is
+          # scoped to the publish step alone, and this keeps git from caching
+          # one for them too.
+          persist-credentials: false
+
+      - name: Resolve build identity
+        id: ident
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha"            >> "$GITHUB_OUTPUT"
+          echo "short=${sha:0:12}"   >> "$GITHUB_OUTPUT"
+
+      - name: Set up Rust
+        uses: ./.github/actions/rust-setup
+
+      - name: Build the Rust binaries
+        run: |
+          cargo build --release --locked \
+            --bin meteroid-api \
+            --bin meteroid-scheduler \
+            --bin metering-api
+
+      # Third-party actions are pinned to an immutable commit here, unlike the
+      # lint workflows. This job builds the binaries that get deployed, so a
+      # moved tag on a third-party action would land straight in production.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.6.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: "modules/web/pnpm-lock.yaml"
+
+      # postinstall runs `buf generate`; @bufbuild/buf is a devDependency, so
+      # this needs no extra tooling.
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile --prefix modules/web
+
+      - name: Build the frontend
+        run: pnpm --prefix modules/web build
+
+      - name: Assemble the artifact
+        id: pack
+        env:
+          SHORT: ${{ steps.ident.outputs.short }}
+          SHA: ${{ steps.ident.outputs.sha }}
+          REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          root="dist/meteroid-${SHORT}"
+          mkdir -p "$root/bin" "$root/web"
+
+          for b in meteroid-api meteroid-scheduler metering-api; do
+            install -m 0755 "target/release/$b" "$root/bin/$b"
+          done
+          cp -r modules/web/web-app/dist "$root/web/dist"
+
+          cat > "$root/MANIFEST" <<MANIFEST
+          version: ${SHORT}
+          ref: ${REF}
+          commit: ${SHA}
+          built_on: $(. /etc/os-release && echo "$PRETTY_NAME")
+          built_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          MANIFEST
+
+          # Record what each file is, so a deployed release can be audited
+          # without unpacking it. SHA256SUMS excludes itself: the shell creates
+          # it before find runs, so including it would record the hash of an
+          # empty file that never matches once written.
+          ( cd "$root" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + \
+              | sort -k2 ) > "$root/SHA256SUMS"
+
+          tar -C dist -czf "meteroid-${SHORT}.tar.gz" "meteroid-${SHORT}"
+          sha="$(sha256sum "meteroid-${SHORT}.tar.gz" | cut -d' ' -f1)"
+          echo "tarball=meteroid-${SHORT}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha"                      >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHORT: ${{ steps.ident.outputs.short }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          SHA256: ${{ steps.pack.outputs.sha256 }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          # Via env, never interpolated into the script: git accepts refs
+          # containing quotes and semicolons, so `${{ inputs.ref }}` inline
+          # would be a command-injection sink with a write-scoped token.
+          REF: ${{ inputs.ref }}
+          SHA: ${{ steps.ident.outputs.sha }}
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' "$SHA256" "$TARBALL" > "${TARBALL}.sha256"
+          notes=$(printf 'Deploy artifact for `%s`.\n\n```\nmeteroid_version: "%s"\nmeteroid_artifact_sha256: "%s"\n```\n' \
+                    "$REF" "$SHORT" "$SHA256")
+          # Re-running for the same commit replaces the assets rather than
+          # failing, but a genuine create error still surfaces.
+          if gh release view "artifact-${SHORT}" >/dev/null 2>&1; then
+            gh release upload "artifact-${SHORT}" \
+              "$TARBALL" "${TARBALL}.sha256" --clobber
+          else
+            flags=()
+            [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
+            # --target pins the new tag to the commit that was actually
+            # built; without it gh tags the default branch HEAD, so the
+            # release could point at code the artifact was not built from.
+            gh release create "artifact-${SHORT}" \
+              "$TARBALL" "${TARBALL}.sha256" \
+              --target "$SHA" \
+              --title "Deploy artifact ${SHORT}" \
+              --notes "$notes" \
+              "${flags[@]}"
+          fi
+
+      - name: Summary
+        env:
+          SHORT: ${{ steps.ident.outputs.short }}
+          SHA256: ${{ steps.pack.outputs.sha256 }}
+        run: |
+          {
+            echo "### Deploy artifact built"
+            echo
+            echo "Set these in \`inventories/group_vars/meteroid-production.yaml\`:"
+            echo
+            echo '```yaml'
+            echo "meteroid_version: \"${SHORT}\""
+            echo "meteroid_artifact_sha256: \"${SHA256}\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

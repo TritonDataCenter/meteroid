@@ -78,3 +78,6 @@ docs
 
 # Isolated feature worktrees
 .worktrees/
+
+# local S3 credentials, never commit
+.s3env
