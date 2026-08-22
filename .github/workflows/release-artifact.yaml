@@ -39,6 +39,11 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          # The build runs cargo build scripts and pnpm lifecycle scripts from
+          # the checked-out ref. Don't hand them a credential: GH_TOKEN is
+          # scoped to the publish step alone, and this keeps git from caching
+          # one for them too.
+          persist-credentials: false
 
       - name: Resolve build identity
         id: ident
@@ -105,8 +110,11 @@ jobs:
           MANIFEST
 
           # Record what each file is, so a deployed release can be audited
-          # without unpacking it.
-          ( cd "$root" && find . -type f -exec sha256sum {} + | sort -k2 ) > "$root/SHA256SUMS"
+          # without unpacking it. SHA256SUMS excludes itself: the shell creates
+          # it before find runs, so including it would record the hash of an
+          # empty file that never matches once written.
+          ( cd "$root" && find . -type f ! -name SHA256SUMS -exec sha256sum {} + \
+              | sort -k2 ) > "$root/SHA256SUMS"
 
           tar -C dist -czf "meteroid-${SHORT}.tar.gz" "meteroid-${SHORT}"
           sha="$(sha256sum "meteroid-${SHORT}.tar.gz" | cut -d' ' -f1)"
@@ -120,11 +128,16 @@ jobs:
           TARBALL: ${{ steps.pack.outputs.tarball }}
           SHA256: ${{ steps.pack.outputs.sha256 }}
           PRERELEASE: ${{ inputs.prerelease }}
+          # Via env, never interpolated into the script: git accepts refs
+          # containing quotes and semicolons, so `${{ inputs.ref }}` inline
+          # would be a command-injection sink with a write-scoped token.
+          REF: ${{ inputs.ref }}
+          SHA: ${{ steps.ident.outputs.sha }}
         run: |
           set -euo pipefail
           printf '%s  %s\n' "$SHA256" "$TARBALL" > "${TARBALL}.sha256"
           notes=$(printf 'Deploy artifact for `%s`.\n\n```\nmeteroid_version: "%s"\nmeteroid_artifact_sha256: "%s"\n```\n' \
-                    "${{ inputs.ref }}" "$SHORT" "$SHA256")
+                    "$REF" "$SHORT" "$SHA256")
           # Re-running for the same commit replaces the assets rather than
           # failing, but a genuine create error still surfaces.
           if gh release view "artifact-${SHORT}" >/dev/null 2>&1; then
@@ -133,8 +146,12 @@ jobs:
           else
             flags=()
             [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
+            # --target pins the new tag to the commit that was actually
+            # built; without it gh tags the default branch HEAD, so the
+            # release could point at code the artifact was not built from.
             gh release create "artifact-${SHORT}" \
               "$TARBALL" "${TARBALL}.sha256" \
+              --target "$SHA" \
               --title "Deploy artifact ${SHORT}" \
               --notes "$notes" \
               "${flags[@]}"
