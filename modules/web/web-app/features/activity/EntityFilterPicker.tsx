@@ -8,9 +8,15 @@ import {
 import { useState } from 'react'
 
 import { useQuery } from '@/lib/connectrpc'
+import { listAddOns } from '@/rpc/api/addons/v1/addons-AddOnsService_connectquery'
+import { listBillableMetrics } from '@/rpc/api/billablemetrics/v1/billablemetrics-BillableMetricsService_connectquery'
+import { listCoupons } from '@/rpc/api/coupons/v1/coupons-CouponsService_connectquery'
+import { ListCouponRequest_CouponFilter } from '@/rpc/api/coupons/v1/coupons_pb'
+import { listCreditNotes } from '@/rpc/api/creditnotes/v1/creditnotes-CreditNotesService_connectquery'
 import { listCustomers } from '@/rpc/api/customers/v1/customers-CustomersService_connectquery'
 import { listInvoices } from '@/rpc/api/invoices/v1/invoices-InvoicesService_connectquery'
 import { listPlans } from '@/rpc/api/plans/v1/plans-PlansService_connectquery'
+import { searchProducts } from '@/rpc/api/products/v1/products-ProductsService_connectquery'
 import { listQuotes } from '@/rpc/api/quotes/v1/quotes-QuotesService_connectquery'
 import { listSubscriptions } from '@/rpc/api/subscriptions/v1/subscriptions-SubscriptionsService_connectquery'
 
@@ -79,6 +85,11 @@ const SUPPORTED = new Set([
   'invoice',
   'quote',
   'plan',
+  'product',
+  'add_on',
+  'coupon',
+  'billable_metric',
+  'credit_note',
 ])
 
 type Picked = { id: string; label: string }
@@ -103,6 +114,16 @@ const Results = ({
       return <QuoteResults search={search} onPick={onPick} />
     case 'plan':
       return <PlanResults search={search} onPick={onPick} />
+    case 'product':
+      return <ProductResults search={search} onPick={onPick} />
+    case 'add_on':
+      return <AddOnResults search={search} onPick={onPick} />
+    case 'coupon':
+      return <CouponResults search={search} onPick={onPick} />
+    case 'billable_metric':
+      return <BillableMetricResults search={search} onPick={onPick} />
+    case 'credit_note':
+      return <CreditNoteResults search={search} onPick={onPick} />
     default:
       return null
   }
@@ -208,5 +229,61 @@ const PlanResults = ({ search, onPick }: { search: string; onPick: (p: Picked) =
   const items: Picked[] = (q.data?.plans ?? [])
     .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
     .map(p => ({ id: p.id, label: p.name }))
+  return <ItemList isLoading={q.isLoading} items={items} onPick={onPick} />
+}
+
+const ProductResults = ({ search, onPick }: { search: string; onPick: (p: Picked) => void }) => {
+  const q = useQuery(searchProducts, {
+    pagination: { perPage: PAGE, page: 0 },
+    query: search || undefined,
+  })
+  const items: Picked[] = (q.data?.products ?? []).map(p => ({ id: p.id, label: p.name }))
+  return <ItemList isLoading={q.isLoading} items={items} onPick={onPick} />
+}
+
+const AddOnResults = ({ search, onPick }: { search: string; onPick: (p: Picked) => void }) => {
+  const q = useQuery(listAddOns, {
+    pagination: { perPage: PAGE, page: 0 },
+    search: search || undefined,
+  })
+  const items: Picked[] = (q.data?.addOns ?? []).map(a => ({ id: a.id, label: a.name }))
+  return <ItemList isLoading={q.isLoading} items={items} onPick={onPick} />
+}
+
+const CouponResults = ({ search, onPick }: { search: string; onPick: (p: Picked) => void }) => {
+  const q = useQuery(listCoupons, {
+    pagination: { perPage: PAGE, page: 0 },
+    search: search || undefined,
+    // Activity can reference archived coupons, so don't narrow to active ones.
+    filter: ListCouponRequest_CouponFilter.ALL,
+  })
+  const items: Picked[] = (q.data?.coupons ?? []).map(c => ({ id: c.id, label: c.code }))
+  return <ItemList isLoading={q.isLoading} items={items} onPick={onPick} />
+}
+
+const BillableMetricResults = ({
+  search,
+  onPick,
+}: {
+  search: string
+  onPick: (p: Picked) => void
+}) => {
+  const q = useQuery(listBillableMetrics, {
+    pagination: { perPage: PAGE, page: 0 },
+    search: search || undefined,
+  })
+  const items: Picked[] = (q.data?.billableMetrics ?? []).map(m => ({ id: m.id, label: m.name }))
+  return <ItemList isLoading={q.isLoading} items={items} onPick={onPick} />
+}
+
+const CreditNoteResults = ({ search, onPick }: { search: string; onPick: (p: Picked) => void }) => {
+  const q = useQuery(listCreditNotes, {
+    pagination: { perPage: PAGE, page: 0 },
+    search: search || undefined,
+  })
+  const items: Picked[] = (q.data?.creditNotes ?? []).map(cn => ({
+    id: cn.id,
+    label: cn.creditNoteNumber,
+  }))
   return <ItemList isLoading={q.isLoading} items={items} onPick={onPick} />
 }
