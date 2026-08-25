@@ -74,6 +74,7 @@ export const ValidateEmailForm = () => {
             label="Password"
             control={methods.control}
             placeholder="Create password"
+            type="password"
             showPasswordToggle
             autoFocus
           />
@@ -82,6 +83,7 @@ export const ValidateEmailForm = () => {
             label="Confirm Password"
             control={methods.control}
             placeholder="Re-enter password"
+            type="password"
             showPasswordToggle
           />
           <Button
