@@ -1,11 +1,10 @@
 {
   "extends": "@md/tsconfig/vite.json",
-  "exclude": ["node_modules", "packages"],
+  // Tests are type-checked by tsconfig.test.json, not here: this program is what
+  // `pnpm build` runs, and a broken test must not fail a production build.
+  "exclude": ["node_modules", "packages", "**/*.test.ts"],
   "compilerOptions": {
     "baseUrl": ".",
-    // Test files import the module under test by its real path so that node's
-    // built-in runner, which needs a full specifier, can resolve it.
-    "allowImportingTsExtensions": true,
     "paths": {
       "@/components/*": ["./components/*"],
       "@/styles": ["./styles/"],

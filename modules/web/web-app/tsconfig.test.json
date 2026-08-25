@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  // The app config excludes test files so a broken test cannot fail the
+  // production build; re-include them here and nothing else.
+  "include": ["lib/**/*.test.ts"],
+  "exclude": ["node_modules", "packages"],
+  "compilerOptions": {
+    // Tests import the module under test by its real path, because node's
+    // built-in test runner needs a full specifier to resolve it. The app
+    // program must not accept that form.
+    "allowImportingTsExtensions": true,
+    // The app config points typeRoots at a directory of app-local declarations,
+    // which is not where @types/node lives.
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["node"]
+  }
+}
