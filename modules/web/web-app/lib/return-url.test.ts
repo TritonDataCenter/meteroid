@@ -70,9 +70,12 @@ describe('resolveReturnUrl', () => {
 
   it('refuses a protocol-relative value rather than resolving it', () => {
     // These are refused only because `new URL()` is called with no base
-    // argument. Add a base and every other test here still passes while the
-    // hole reopens, so this is the case that guards that line.
-    assert.throws(() => new URL('//evil.example'), TypeError)
+    // argument, and only the allowed-host forms can say so: an off-allowlist
+    // host is refused either way, so it pins nothing. With a base these two
+    // resolve to https://portal.example.com/x and pass the allowlist check.
+    assert.equal(resolveReturnUrl('//portal.example.com/x', ALLOWED), null)
+    assert.equal(resolveReturnUrl(String.raw`/\portal.example.com/x`, ALLOWED), null)
+
     assert.equal(resolveReturnUrl('//evil.example', ALLOWED), null)
     assert.equal(resolveReturnUrl('///evil.example', ALLOWED), null)
   })
