@@ -98,6 +98,7 @@
     "build": "tsc && vite build",
     "build:js": "vite build",
     "dev": "vite",
+    "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit && eslint \"./**/*.ts*\"",
     "lint:fix": "eslint . --fix",

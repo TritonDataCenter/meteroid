@@ -3,6 +3,9 @@
   "exclude": ["node_modules", "packages"],
   "compilerOptions": {
     "baseUrl": ".",
+    // Test files import the module under test by its real path so that node's
+    // built-in runner, which needs a full specifier, can resolve it.
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/components/*": ["./components/*"],
       "@/styles": ["./styles/"],
