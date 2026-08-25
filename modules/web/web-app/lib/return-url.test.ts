@@ -218,6 +218,9 @@ describe('parseAllowedOrigins', () => {
     assert.deepEqual(parsed, [])
     assert.equal(warnings.length, 1)
     assert.match(warnings[0], /wildcard/)
+    // The separator is not the cause here, and saying so would send an
+    // operator after a fix that changes nothing.
+    assert.doesNotMatch(warnings[0], /separated by commas, not/)
   })
 
   it('rejects a semicolon-separated list instead of keeping the run-together host', () => {
@@ -231,6 +234,8 @@ describe('parseAllowedOrigins', () => {
     assert.deepEqual(parsed, [])
     assert.equal(warnings.length, 1)
     assert.match(warnings[0], /a\.example;https/)
+    assert.match(warnings[0], /separated by commas, not ";"/)
+    assert.doesNotMatch(warnings[0], /wildcard/)
   })
 
   it('keeps the host forms a developer machine actually serves from', () => {
@@ -253,6 +258,53 @@ describe('parseAllowedOrigins', () => {
     })
     assert.deepEqual(parsed, [])
     assert.equal(warnings.length, 1)
+  })
+
+  it('keeps a single-label host, with or without a port', () => {
+    // One DNS label is a valid hostname on an internal network. Requiring a
+    // dot would drop a working operator origin and manufacture the silent
+    // empty allowlist this diagnostic exists to prevent.
+    let parsed: string[] = []
+    const warnings = captureWarnings(() => {
+      parsed = parseAllowedOrigins('http://intranet,http://billing:8080')
+    })
+    assert.deepEqual(parsed, ['http://intranet', 'http://billing:8080'])
+    assert.deepEqual(warnings, [])
+  })
+
+  it('keeps a host containing an underscore', () => {
+    // Not RFC 1123, but browsers resolve it and internal naming uses it.
+    let parsed: string[] = []
+    const warnings = captureWarnings(() => {
+      parsed = parseAllowedOrigins('https://my_host.example')
+    })
+    assert.deepEqual(parsed, ['https://my_host.example'])
+    assert.deepEqual(warnings, [])
+  })
+
+  it('names the separator it found rather than assuming a semicolon', () => {
+    let parsed: string[] = []
+    const warnings = captureWarnings(() => {
+      parsed = parseAllowedOrigins('https://a.example&https://b.example')
+    })
+    assert.deepEqual(parsed, [])
+    assert.equal(warnings.length, 1)
+    assert.match(warnings[0], /separated by commas, not "&"/)
+    assert.doesNotMatch(warnings[0], /wildcard/)
+  })
+
+  it('suggests no cause at all when neither a wildcard nor a separator explains it', () => {
+    // An empty label is malformed for a reason the diagnostic cannot name, so
+    // it must not invent one.
+    let parsed: string[] = []
+    const warnings = captureWarnings(() => {
+      parsed = parseAllowedOrigins('https://a..example')
+    })
+    assert.deepEqual(parsed, [])
+    assert.equal(warnings.length, 1)
+    assert.match(warnings[0], /"a\.\.example" is not a valid hostname/)
+    assert.doesNotMatch(warnings[0], /wildcard/)
+    assert.doesNotMatch(warnings[0], /separated by commas, not/)
   })
 
   it('deduplicates entries that normalize to the same origin', () => {

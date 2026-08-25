@@ -55,17 +55,34 @@ const warnDroppedEntry = (entry: string, reason: string): void => {
 }
 
 /**
- * A hostname made of DNS labels: alphanumerics and hyphens, separated by dots.
- * Punycode and the parser's own unicode normalization both land in this shape,
- * as do IPv4 literals.
+ * A hostname: DNS labels separated by dots.
+ *
+ * No dot is required. A single label such as `intranet` is a perfectly valid
+ * hostname on an internal network, and refusing it would drop a working
+ * operator origin for no security gain.
+ *
+ * Underscores are accepted too. They are not RFC 1123, but browsers resolve
+ * them and they turn up in internal naming, so treating them as garbage would
+ * again drop an origin that really works.
+ *
+ * A leading or trailing hyphen is still refused: that is a genuine label rule
+ * rather than a guess about what an operator meant.
  */
-const DNS_HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
+const DNS_HOSTNAME = /^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*$/
 
-/** Single-label and bracketed hosts a developer machine really does serve from. */
-const LITERAL_HOSTS = /^(localhost|\[[0-9a-f:.]+\])$/
+/** An IPv6 literal, which the parser hands back with its brackets attached. */
+const IP_LITERAL = /^\[[0-9a-f:.]+\]$/
 
 /**
- * Rejects a hostname that parsed but cannot correspond to a real host.
+ * Separators an operator might reach for instead of a comma. Neither is a
+ * forbidden host code point, so a wrong one lands inside the parsed hostname
+ * rather than failing the parse.
+ */
+const MISUSED_SEPARATOR = /[;&]/
+
+/**
+ * Describes why a hostname cannot correspond to a real host, or `null` when it
+ * can.
  *
  * Very few characters are forbidden host code points, so a mistyped entry
  * usually parses into a plausible-looking origin that matches nothing: a `;`
@@ -73,9 +90,25 @@ const LITERAL_HOSTS = /^(localhost|\[[0-9a-f:.]+\])$/
  * `a.example;https`, and `https://*.example.com` keeps its `*`. An allowlist
  * built from those looks populated while denying every target, which is the
  * hardest failure for an operator to diagnose.
+ *
+ * The reason names the cause that actually applies. A confidently wrong
+ * explanation is worse than a vague one, because it sends the operator after a
+ * fix that will not work on a page that takes payments.
  */
-const isRealHostname = (hostname: string): boolean =>
-  DNS_HOSTNAME.test(hostname) || LITERAL_HOSTS.test(hostname)
+const hostnameProblem = (hostname: string): string | null => {
+  if (DNS_HOSTNAME.test(hostname) || IP_LITERAL.test(hostname)) return null
+
+  const named = `${JSON.stringify(hostname)} is not a valid hostname`
+
+  if (hostname.includes('*')) return `${named}; wildcards are not supported`
+
+  const separator = hostname.match(MISUSED_SEPARATOR)
+  if (separator !== null) {
+    return `${named}; entries are separated by commas, not ${JSON.stringify(separator[0])}`
+  }
+
+  return named
+}
 
 /**
  * Parses the configured allowlist. Entries that are not absolute http(s) URLs
@@ -98,12 +131,9 @@ export const parseAllowedOrigins = (raw: string | undefined | null): string[] =>
       continue
     }
 
-    if (!isRealHostname(url.hostname)) {
-      warnDroppedEntry(
-        trimmed,
-        `${JSON.stringify(url.hostname)} is not a hostname; wildcards are not supported and ` +
-          'entries are separated by commas, not semicolons'
-      )
+    const problem = hostnameProblem(url.hostname)
+    if (problem !== null) {
+      warnDroppedEntry(trimmed, problem)
       continue
     }
 
