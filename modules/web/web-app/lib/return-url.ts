@@ -55,6 +55,29 @@ const warnDroppedEntry = (entry: string, reason: string): void => {
 }
 
 /**
+ * A hostname made of DNS labels: alphanumerics and hyphens, separated by dots.
+ * Punycode and the parser's own unicode normalization both land in this shape,
+ * as do IPv4 literals.
+ */
+const DNS_HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
+
+/** Single-label and bracketed hosts a developer machine really does serve from. */
+const LITERAL_HOSTS = /^(localhost|\[[0-9a-f:.]+\])$/
+
+/**
+ * Rejects a hostname that parsed but cannot correspond to a real host.
+ *
+ * Very few characters are forbidden host code points, so a mistyped entry
+ * usually parses into a plausible-looking origin that matches nothing: a `;`
+ * separator gives `https://a.example;https://b.example` the hostname
+ * `a.example;https`, and `https://*.example.com` keeps its `*`. An allowlist
+ * built from those looks populated while denying every target, which is the
+ * hardest failure for an operator to diagnose.
+ */
+const isRealHostname = (hostname: string): boolean =>
+  DNS_HOSTNAME.test(hostname) || LITERAL_HOSTS.test(hostname)
+
+/**
  * Parses the configured allowlist. Entries that are not absolute http(s) URLs
  * are dropped rather than widening the allowlist to something unintended.
  */
@@ -75,11 +98,12 @@ export const parseAllowedOrigins = (raw: string | undefined | null): string[] =>
       continue
     }
 
-    // A `*` parses as an ordinary hostname character, so keeping the entry
-    // would produce an allowlist that matches nothing while looking like it
-    // covers a whole subtree. Wildcards are not supported; say so.
-    if (url.hostname.includes('*')) {
-      warnDroppedEntry(trimmed, 'wildcard hosts are not supported')
+    if (!isRealHostname(url.hostname)) {
+      warnDroppedEntry(
+        trimmed,
+        `${JSON.stringify(url.hostname)} is not a hostname; wildcards are not supported and ` +
+          'entries are separated by commas, not semicolons'
+      )
       continue
     }
 

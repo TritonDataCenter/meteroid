@@ -220,6 +220,32 @@ describe('parseAllowedOrigins', () => {
     assert.match(warnings[0], /wildcard/)
   })
 
+  it('rejects a semicolon-separated list instead of keeping the run-together host', () => {
+    // `;` is not a forbidden host code point, so this parses to the hostname
+    // "a.example;https" and would otherwise sit in the allowlist matching
+    // nothing -- the same failure the wildcard rule exists to prevent.
+    let parsed: string[] = []
+    const warnings = captureWarnings(() => {
+      parsed = parseAllowedOrigins('https://a.example;https://b.example')
+    })
+    assert.deepEqual(parsed, [])
+    assert.equal(warnings.length, 1)
+    assert.match(warnings[0], /a\.example;https/)
+  })
+
+  it('keeps the host forms a developer machine actually serves from', () => {
+    let parsed: string[] = []
+    const warnings = captureWarnings(() => {
+      parsed = parseAllowedOrigins('http://localhost:3000,http://127.0.0.1:8080,http://[::1]:3000')
+    })
+    assert.deepEqual(parsed, [
+      'http://localhost:3000',
+      'http://127.0.0.1:8080',
+      'http://[::1]:3000',
+    ])
+    assert.deepEqual(warnings, [])
+  })
+
   it('warns about the JSON array form, which is not what this variable takes', () => {
     let parsed: string[] = []
     const warnings = captureWarnings(() => {
