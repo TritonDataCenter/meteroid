@@ -1,0 +1,6 @@
+services:
+  meteroid-web:
+    build:
+      context: ../..
+      dockerfile: modules/web/web-app/Dockerfile
+    image: meteroid-web:local
