@@ -17,15 +17,19 @@
  * Parses an absolute http(s) URL, or returns `null`.
  *
  * Restricting the scheme rejects `javascript:`, `data:` and `blob:` targets.
- * Those parse successfully but either execute in our own origin or carry an
- * opaque origin of the literal string "null", which would otherwise compare
- * equal to another opaque origin in the allowlist.
+ * `javascript:` and `data:` carry an opaque origin of the literal string
+ * "null", which would otherwise compare equal to another opaque origin in the
+ * allowlist. `blob:` is worse: it inherits the origin of its inner URL, so
+ * `blob:https://portal.example.com/x` reports the allowed origin exactly while
+ * being an entirely different kind of navigation.
  */
 const parseHttpUrl = (value: string): URL | null => {
   let url: URL
   try {
-    // No base is supplied on purpose: a relative value must fail rather than
-    // resolve against whatever origin happens to be serving the page.
+    // No base is supplied on purpose: a relative or protocol-relative value
+    // must fail rather than resolve against whatever origin happens to be
+    // serving the page. Passing `window.location.origin` here would reopen the
+    // hole this module exists to close.
     url = new URL(value)
   } catch {
     return null
@@ -37,17 +41,50 @@ const parseHttpUrl = (value: string): URL | null => {
 }
 
 /**
+ * Reports an allowlist entry that was thrown away.
+ *
+ * Dropping entries silently fails closed, which is right, but it leaves the
+ * operator looking at a payment page where the redirect merely stopped
+ * happening, with nothing anywhere to say why.
+ */
+const warnDroppedEntry = (entry: string, reason: string): void => {
+  console.warn(
+    `VITE_PORTAL_RETURN_URL_ALLOWLIST: ignoring ${JSON.stringify(entry)} (${reason}). ` +
+      'Entries are comma-separated absolute http(s) origins, e.g. https://portal.example.com.'
+  )
+}
+
+/**
  * Parses the configured allowlist. Entries that are not absolute http(s) URLs
  * are dropped rather than widening the allowlist to something unintended.
  */
 export const parseAllowedOrigins = (raw: string | undefined | null): string[] => {
   if (!raw) return []
 
-  const origins = raw
-    .split(',')
-    .map(entry => parseHttpUrl(entry.trim()))
-    .filter((url): url is URL => url !== null)
-    .map(url => url.origin)
+  const origins: string[] = []
+
+  for (const entry of raw.split(',')) {
+    const trimmed = entry.trim()
+    // Trailing or doubled separators are a formatting artefact, not a mistake
+    // worth reporting.
+    if (trimmed === '') continue
+
+    const url = parseHttpUrl(trimmed)
+    if (url === null) {
+      warnDroppedEntry(trimmed, 'not an absolute http(s) URL')
+      continue
+    }
+
+    // A `*` parses as an ordinary hostname character, so keeping the entry
+    // would produce an allowlist that matches nothing while looking like it
+    // covers a whole subtree. Wildcards are not supported; say so.
+    if (url.hostname.includes('*')) {
+      warnDroppedEntry(trimmed, 'wildcard hosts are not supported')
+      continue
+    }
+
+    origins.push(url.origin)
+  }
 
   return [...new Set(origins)]
 }
@@ -72,7 +109,16 @@ export const resolveReturnUrl = (
   // `https://portal.example.com`.
   if (!allowedOrigins.includes(url.origin)) return null
 
-  // Hand back the parser's own serialization, so the value the browser is given
-  // is exactly the one that was validated.
+  // Embedded credentials survive serialization and are not part of the origin,
+  // so they pass the check above. On the allowed host they still let a link
+  // force an `Authorization: Basic` header of the attacker's choosing, raise
+  // the browser's "log in as <name>" prompt against a host the victim trusts,
+  // and make the link's hover preview read as some other domain.
+  url.username = ''
+  url.password = ''
+
+  // Hand back the parser's own serialization rather than the caller's string,
+  // so the value the browser is given is exactly the one that was validated and
+  // no parser disagreement can sit between the two.
   return url.toString()
 }
