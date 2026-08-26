@@ -226,9 +226,10 @@ export const resolveSameOriginReturnUrl = (
   if (!raw) return null
   if (origin === null) return null
 
-  // An absolute-path reference is the only shape a return target may take, so a
-  // scheme (`javascript:`), a bare authority, and a path relative to the
-  // current page are all refused before anything has to reason about them.
+  // Refuses a scheme (`javascript:`), a still-encoded value, and a path
+  // relative to the current page. It does NOT refuse a bare authority:
+  // `//evil.example` starts with a slash and passes here. The origin
+  // comparison below is what catches that.
   if (!raw.startsWith('/')) return null
 
   let url: URL
