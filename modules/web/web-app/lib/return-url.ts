@@ -1,16 +1,21 @@
 /**
- * Validation for the caller-supplied `return_url` on the portal payment success
- * pages.
+ * Validation for caller-supplied redirect targets.
  *
- * Those pages are unauthenticated and reachable by anyone, so an unchecked
- * redirect target turns the billing domain into a phishing redirector: an
- * attacker hands a victim a link on our billing host, the victim sees a payment
- * confirmation, and then lands wherever the attacker chose.
+ * Every page involved is unauthenticated and reachable by anyone, so an
+ * unchecked target turns our own host into a phishing redirector: an attacker
+ * hands a victim a link on a host they trust, the victim sees a page they
+ * expect, and then lands wherever the attacker chose.
  *
- * The legitimate return is genuinely cross-origin (billing origin back to the
- * embedding portal), so the relative-path test used by the login and
- * registration forms is not applicable here. Instead the target origin must
- * match an operator-configured allowlist exactly.
+ * Two different questions are asked here, and they have different answers.
+ *
+ * The portal payment success pages return to another origin (billing origin
+ * back to the embedding portal), so their target must match an
+ * operator-configured origin allowlist: `resolveReturnUrl`.
+ *
+ * The auth forms return to a page of this app, so their target must be a
+ * same-origin path: `resolveSameOriginReturnUrl`. A `startsWith('/')` test on
+ * the raw string does not decide that, and neither does comparing origins; see
+ * that function for what does.
  */
 
 /**
@@ -175,4 +180,73 @@ export const resolveReturnUrl = (
   // so the value the browser is given is exactly the one that was validated and
   // no parser disagreement can sit between the two.
   return url.toString()
+}
+
+/**
+ * The current page's origin, or `null` when there is not a usable one to
+ * resolve a relative target against.
+ *
+ * `null` covers a non-browser host (the tests) and an opaque origin such as a
+ * sandboxed iframe or a `file://` page, where the serialization is the literal
+ * "null" and is not a URL base.
+ */
+const currentOrigin = (): string | null => {
+  if (typeof location === 'undefined') return null
+
+  const origin = location.origin
+  return origin === '' || origin === 'null' ? null : origin
+}
+
+/**
+ * Returns a same-origin path to navigate to, or `null` when the caller-supplied
+ * value is absent or is not one. Callers must treat `null` as "use the default
+ * destination"; there is deliberately no fallback target here.
+ *
+ * A `startsWith('/')` test on the raw string does not answer this question.
+ * `/.\/evil.example` passes it, and the WHATWG parser then reads the backslash
+ * as a path separator and folds the `.` segment away, leaving the resolved
+ * pathname `//evil.example` on this very origin. React Router hands that bare
+ * string to `history.pushState`, the browser re-resolves it against the
+ * document as a protocol-relative URL, the call throws SecurityError, and the
+ * history package's catch falls through to `location.assign` -- so the throw is
+ * itself the off-site redirect.
+ *
+ * Comparing origins does not answer it either: the resolved URL's origin is our
+ * own, which is exactly why the payload survives an origin check.
+ *
+ * The check that does answer it is on the RESOLVED pathname, whatever the raw
+ * string looked like: reject a leading `//`.
+ *
+ * `origin` is a parameter only so tests can supply one; callers pass nothing.
+ */
+export const resolveSameOriginReturnUrl = (
+  raw: string | undefined | null,
+  origin: string | null = currentOrigin()
+): string | null => {
+  if (!raw) return null
+  if (origin === null) return null
+
+  // An absolute-path reference is the only shape a return target may take, so a
+  // scheme (`javascript:`), a bare authority, and a path relative to the
+  // current page are all refused before anything has to reason about them.
+  if (!raw.startsWith('/')) return null
+
+  let url: URL
+  try {
+    url = new URL(raw, origin)
+  } catch {
+    return null
+  }
+
+  // A leading slash does not make a value ours: `//evil.example` and
+  // `/\evil.example` both resolve to the attacker's origin.
+  if (url.origin !== origin) return null
+
+  // The essential check, per the note above.
+  if (url.pathname.startsWith('//')) return null
+
+  // Hand back the parser's own path rather than the caller's string, so the
+  // value that gets navigated to is exactly the one that was validated and no
+  // parser disagreement can sit between the two.
+  return `${url.pathname}${url.search}${url.hash}`
 }
