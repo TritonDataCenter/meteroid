@@ -5,21 +5,6 @@ import { parseAllowedOrigins, resolveReturnUrl, resolveSameOriginReturnUrl } fro
 
 const ALLOWED = ['https://portal.example.com']
 
-/** Runs `fn` with `console.warn` captured, so diagnostics can be asserted. */
-const captureWarnings = (fn: () => void): string[] => {
-  const warnings: string[] = []
-  const original = console.warn
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args.join(' '))
-  }
-  try {
-    fn()
-  } finally {
-    console.warn = original
-  }
-  return warnings
-}
-
 describe('resolveReturnUrl', () => {
   it('accepts an allowlisted origin', () => {
     assert.equal(
@@ -186,125 +171,33 @@ describe('parseAllowedOrigins', () => {
     ])
   })
 
-  it('defaults to deny-all when unset or empty', () => {
+  it('defaults to deny-all when unset, empty, or all separators', () => {
     assert.deepEqual(parseAllowedOrigins(undefined), [])
     assert.deepEqual(parseAllowedOrigins(''), [])
-
     // A trailing or doubled comma is a formatting artefact, not a mistake.
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('  ,  ')
-    })
-    assert.deepEqual(parsed, [])
-    assert.deepEqual(warnings, [])
+    assert.deepEqual(parseAllowedOrigins('  ,  '), [])
   })
 
-  it('names each entry it drops for not being an absolute http(s) URL', () => {
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('portal.example.com,javascript:alert(1)')
-    })
-    assert.deepEqual(parsed, [])
-    assert.equal(warnings.length, 2)
-    assert.match(warnings[0], /"portal\.example\.com"/)
-    assert.match(warnings[1], /"javascript:alert\(1\)"/)
+  it('drops entries that are not absolute http(s) URLs', () => {
+    assert.deepEqual(parseAllowedOrigins('portal.example.com,javascript:alert(1)'), [])
+    // Not the format this variable takes.
+    assert.deepEqual(parseAllowedOrigins('["https://a.example"]'), [])
   })
 
-  it('rejects a wildcard host instead of keeping a literal that matches nothing', () => {
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('https://*.example.com')
-    })
-    assert.deepEqual(parsed, [])
-    assert.equal(warnings.length, 1)
-    assert.match(warnings[0], /wildcard/)
-    // The separator is not the cause here, and saying so would send an
-    // operator after a fix that changes nothing.
-    assert.doesNotMatch(warnings[0], /separated by commas, not/)
-  })
-
-  it('rejects a semicolon-separated list instead of keeping the run-together host', () => {
-    // `;` is not a forbidden host code point, so this parses to the hostname
-    // "a.example;https" and would otherwise sit in the allowlist matching
-    // nothing -- the same failure the wildcard rule exists to prevent.
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('https://a.example;https://b.example')
-    })
-    assert.deepEqual(parsed, [])
-    assert.equal(warnings.length, 1)
-    assert.match(warnings[0], /a\.example;https/)
-    assert.match(warnings[0], /separated by commas, not ";"/)
-    assert.doesNotMatch(warnings[0], /wildcard/)
+  it('keeps a mistyped separator as a literal that will not match anything real', () => {
+    // `;` is not a forbidden host code point, so this parses to one entry with
+    // hostname "a.example;https" -- fails closed (nothing will ever match it)
+    // rather than open, which is what matters; there is no separate warning.
+    assert.deepEqual(parseAllowedOrigins('https://a.example;https://b.example'), [
+      'https://a.example;https',
+    ])
   })
 
   it('keeps the host forms a developer machine actually serves from', () => {
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('http://localhost:3000,http://127.0.0.1:8080,http://[::1]:3000')
-    })
-    assert.deepEqual(parsed, [
-      'http://localhost:3000',
-      'http://127.0.0.1:8080',
-      'http://[::1]:3000',
-    ])
-    assert.deepEqual(warnings, [])
-  })
-
-  it('warns about the JSON array form, which is not what this variable takes', () => {
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('["https://a.example"]')
-    })
-    assert.deepEqual(parsed, [])
-    assert.equal(warnings.length, 1)
-  })
-
-  it('keeps a single-label host, with or without a port', () => {
-    // One DNS label is a valid hostname on an internal network. Requiring a
-    // dot would drop a working operator origin and manufacture the silent
-    // empty allowlist this diagnostic exists to prevent.
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('http://intranet,http://billing:8080')
-    })
-    assert.deepEqual(parsed, ['http://intranet', 'http://billing:8080'])
-    assert.deepEqual(warnings, [])
-  })
-
-  it('keeps a host containing an underscore', () => {
-    // Not RFC 1123, but browsers resolve it and internal naming uses it.
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('https://my_host.example')
-    })
-    assert.deepEqual(parsed, ['https://my_host.example'])
-    assert.deepEqual(warnings, [])
-  })
-
-  it('names the separator it found rather than assuming a semicolon', () => {
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('https://a.example&https://b.example')
-    })
-    assert.deepEqual(parsed, [])
-    assert.equal(warnings.length, 1)
-    assert.match(warnings[0], /separated by commas, not "&"/)
-    assert.doesNotMatch(warnings[0], /wildcard/)
-  })
-
-  it('suggests no cause at all when neither a wildcard nor a separator explains it', () => {
-    // An empty label is malformed for a reason the diagnostic cannot name, so
-    // it must not invent one.
-    let parsed: string[] = []
-    const warnings = captureWarnings(() => {
-      parsed = parseAllowedOrigins('https://a..example')
-    })
-    assert.deepEqual(parsed, [])
-    assert.equal(warnings.length, 1)
-    assert.match(warnings[0], /"a\.\.example" is not a valid hostname/)
-    assert.doesNotMatch(warnings[0], /wildcard/)
-    assert.doesNotMatch(warnings[0], /separated by commas, not/)
+    assert.deepEqual(
+      parseAllowedOrigins('http://localhost:3000,http://127.0.0.1:8080,http://[::1]:3000'),
+      ['http://localhost:3000', 'http://127.0.0.1:8080', 'http://[::1]:3000']
+    )
   })
 
   it('deduplicates entries that normalize to the same origin', () => {

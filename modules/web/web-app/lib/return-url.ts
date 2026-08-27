@@ -46,104 +46,18 @@ const parseHttpUrl = (value: string): URL | null => {
 }
 
 /**
- * Reports an allowlist entry that was thrown away.
- *
- * Dropping entries silently fails closed, which is right, but it leaves the
- * operator looking at a payment page where the redirect merely stopped
- * happening, with nothing anywhere to say why.
- */
-const warnDroppedEntry = (entry: string, reason: string): void => {
-  console.warn(
-    `VITE_PORTAL_RETURN_URL_ALLOWLIST: ignoring ${JSON.stringify(entry)} (${reason}). ` +
-      'Entries are comma-separated absolute http(s) origins, e.g. https://portal.example.com.'
-  )
-}
-
-/**
- * A hostname: DNS labels separated by dots.
- *
- * No dot is required. A single label such as `intranet` is a perfectly valid
- * hostname on an internal network, and refusing it would drop a working
- * operator origin for no security gain.
- *
- * Underscores are accepted too. They are not RFC 1123, but browsers resolve
- * them and they turn up in internal naming, so treating them as garbage would
- * again drop an origin that really works.
- *
- * A leading or trailing hyphen is still refused: that is a genuine label rule
- * rather than a guess about what an operator meant.
- */
-const DNS_HOSTNAME = /^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*$/
-
-/** An IPv6 literal, which the parser hands back with its brackets attached. */
-const IP_LITERAL = /^\[[0-9a-f:.]+\]$/
-
-/**
- * Separators an operator might reach for instead of a comma. Neither is a
- * forbidden host code point, so a wrong one lands inside the parsed hostname
- * rather than failing the parse.
- */
-const MISUSED_SEPARATOR = /[;&]/
-
-/**
- * Describes why a hostname cannot correspond to a real host, or `null` when it
- * can.
- *
- * Very few characters are forbidden host code points, so a mistyped entry
- * usually parses into a plausible-looking origin that matches nothing: a `;`
- * separator gives `https://a.example;https://b.example` the hostname
- * `a.example;https`, and `https://*.example.com` keeps its `*`. An allowlist
- * built from those looks populated while denying every target, which is the
- * hardest failure for an operator to diagnose.
- *
- * The reason names the cause that actually applies. A confidently wrong
- * explanation is worse than a vague one, because it sends the operator after a
- * fix that will not work on a page that takes payments.
- */
-const hostnameProblem = (hostname: string): string | null => {
-  if (DNS_HOSTNAME.test(hostname) || IP_LITERAL.test(hostname)) return null
-
-  const named = `${JSON.stringify(hostname)} is not a valid hostname`
-
-  if (hostname.includes('*')) return `${named}; wildcards are not supported`
-
-  const separator = hostname.match(MISUSED_SEPARATOR)
-  if (separator !== null) {
-    return `${named}; entries are separated by commas, not ${JSON.stringify(separator[0])}`
-  }
-
-  return named
-}
-
-/**
- * Parses the configured allowlist. Entries that are not absolute http(s) URLs
- * are dropped rather than widening the allowlist to something unintended.
+ * Parses the configured allowlist down to bare origins. An entry that is not
+ * an absolute http(s) URL is dropped rather than widening the allowlist to
+ * something unintended; a bad entry fails closed the same as a bad
+ * `return_url` does, since both go through the same `parseHttpUrl` gate.
  */
 export const parseAllowedOrigins = (raw: string | undefined | null): string[] => {
   if (!raw) return []
 
-  const origins: string[] = []
-
-  for (const entry of raw.split(',')) {
-    const trimmed = entry.trim()
-    // Trailing or doubled separators are a formatting artefact, not a mistake
-    // worth reporting.
-    if (trimmed === '') continue
-
-    const url = parseHttpUrl(trimmed)
-    if (url === null) {
-      warnDroppedEntry(trimmed, 'not an absolute http(s) URL')
-      continue
-    }
-
-    const problem = hostnameProblem(url.hostname)
-    if (problem !== null) {
-      warnDroppedEntry(trimmed, problem)
-      continue
-    }
-
-    origins.push(url.origin)
-  }
+  const origins = raw
+    .split(',')
+    .map(entry => parseHttpUrl(entry.trim())?.origin)
+    .filter((origin): origin is string => origin !== undefined)
 
   return [...new Set(origins)]
 }
