@@ -34,5 +34,6 @@ add_optional() {
     add_optional VITE_PUBLIC_POSTHOG_HOST
     add_optional VITE_PUBLIC_POSTHOG_HOST_FALLBACK
     add_optional VITE_ENTITLEMENTS_ENABLED
+    add_optional VITE_PORTAL_RETURN_URL_ALLOWLIST
     echo "};"
 } > "$ENV_FILE"
