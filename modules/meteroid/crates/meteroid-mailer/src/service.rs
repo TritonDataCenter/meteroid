@@ -134,7 +134,7 @@ where
     ) -> Result<RenderedEmail, Report<MailerServiceError>> {
         let tpl = InvoiceReadyTemplate::from(data.clone()).tpl;
         let subject = tpl.title.clone();
-        let from = format!("{} <billing@meteroid.com>", data.company_name);
+        let from = self.config.from.clone();
         let reply_to = Some("Meteroid <support@meteroid.com>".to_string());
         let body_html = tpl.render_once().map_err(|e| Report::new(e.into()))?;
         let recipients = data.recipients.clone();
@@ -166,7 +166,7 @@ where
     ) -> Result<RenderedEmail, Report<MailerServiceError>> {
         let tpl = InvoicePaidTemplate::from(data.clone()).tpl;
         let subject = tpl.title.clone();
-        let from = format!("{} <billing@meteroid.com>", data.company_name);
+        let from = self.config.from.clone();
         let reply_to = Some("Meteroid <support@meteroid.com>".to_string());
         let body_html = tpl.render_once().map_err(|e| Report::new(e.into()))?;
         let recipients = data.recipients.clone();
