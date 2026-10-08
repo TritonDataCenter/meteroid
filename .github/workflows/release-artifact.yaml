@@ -27,10 +27,13 @@ concurrency:
 jobs:
   build:
     name: Build deploy artifact
-    # Pinned, not ubuntu-latest. The deploy targets run Ubuntu 24.04 and these
-    # binaries are dynamically linked; a runner on a newer glibc would produce
-    # binaries that will not load there.
-    runs-on: ubuntu-24.04
+    # The deploy targets run Ubuntu 24.04 and these binaries are dynamically
+    # linked; a runner on a newer glibc would produce binaries that will not
+    # load there. The triton runners are Ubuntu 24.04 too: move this back to
+    # a pinned ubuntu-24.04 image if that ever stops being true.
+    runs-on:
+      group: triton
+      labels: [self-hosted, APP]
     timeout-minutes: 60
 
     steps:

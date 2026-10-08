@@ -21,7 +21,9 @@ jobs:
     permissions:
       pull-requests: read
     name: Validate PR title
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     if: github.event_name == 'pull_request'
     steps:
       - uses: amannn/action-semantic-pull-request@v6
@@ -48,7 +50,9 @@ jobs:
       # write permission is required for autolabeler
       # otherwise, read permission is required at least
       pull-requests: write
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     steps:
       # (Optional) GitHub Enterprise requires GHE_HOST variable set
       #- name: Set GHE_HOST

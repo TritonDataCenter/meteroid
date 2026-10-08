@@ -39,7 +39,9 @@ env:
 jobs:
   check:
     name: Test
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     timeout-minutes: 45
     services:
       postgres:
@@ -96,7 +98,9 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/rust-setup
@@ -109,7 +113,9 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/rust-setup

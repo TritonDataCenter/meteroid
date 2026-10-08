@@ -44,12 +44,15 @@ jobs:
             proto_arch: x86_64
             grpc_health_probe_arch: amd64
             prefix: amd64
-            runs_on: ubuntu-latest
+            runs_on:
+              group: triton
+              labels: [self-hosted, APP]
           - platform: linux/arm64
             mold_arch: aarch64
             proto_arch: aarch_64
             grpc_health_probe_arch: arm64
             prefix: arm64
+            # GitHub-hosted: there are no arm64 self-hosted runners.
             runs_on: ubuntu-24.04-arm
     runs-on: ${{ matrix.runs_on }}
     steps:
@@ -138,7 +141,9 @@ jobs:
           - meteroid-scheduler
           - metering-api
           - meteroid-web
-    runs-on: ubuntu-latest
+    runs-on:
+      group: triton
+      labels: [self-hosted, APP]
     steps:
       - name: Download digests
         uses: actions/download-artifact@v8
