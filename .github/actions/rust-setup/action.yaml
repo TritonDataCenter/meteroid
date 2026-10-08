@@ -27,12 +27,20 @@ runs:
         wget -q https://github.com/protocolbuffers/protobuf/releases/download/v21.8/protoc-21.8-linux-x86_64.zip
         unzip -q protoc*.zip
         sudo mv bin/protoc /usr/local/bin
-        sudo mv include/google /usr/local/include
+        # cp, not mv: a self-hosted runner keeps /usr/local/include/google from
+        # the previous job, and mv refuses to replace a non-empty directory.
+        sudo cp -r include/google /usr/local/include/
         rm -rf protoc*.zip bin include readme.txt
 
+    # make-default replaces the system /usr/bin/ld with mold. That is fine on a
+    # throwaway GitHub-hosted VM, but a self-hosted runner keeps it for every
+    # later job, including other repos' builds, so there mold is installed
+    # without taking over ld.
     - name: Setup mold linker
       if: inputs.mold == 'true'
       uses: rui314/setup-mold@v1
+      with:
+        make-default: ${{ runner.environment == 'github-hosted' }}
 
     - name: Install toolchain
       uses: dtolnay/rust-toolchain@master

@@ -39,7 +39,9 @@ env:
 jobs:
   check:
     name: Test
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     timeout-minutes: 45
     services:
       postgres:
@@ -59,7 +61,11 @@ jobs:
       METEROID_TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v7
+      # Strips the GitHub-hosted image to make room. On a self-hosted runner it
+      # would uninstall toolchains and prune Docker images that later jobs
+      # rely on, and those runners have the disk to spare.
       - name: Free disk space
+        if: runner.environment == 'github-hosted'
         run: |
           df -h
           sudo apt-get remove -y '^llvm-.*'
@@ -92,7 +98,9 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/rust-setup
@@ -105,7 +113,9 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/rust-setup

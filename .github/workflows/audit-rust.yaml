@@ -25,7 +25,9 @@ concurrency:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    # Pull requests from forks stay on GitHub-hosted runners: the repo is
+    # public, and self-hosted runners must not run untrusted code.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('{"group":"triton","labels":["self-hosted","APP"]}') || 'ubuntu-latest' }}
 
     steps:
       - name: Checkout code
