@@ -113,17 +113,20 @@ jobs:
           provenance: false
           outputs: type=image,name=${{ env.IMAGE_PREFIX }}/${{ matrix.image_type.name }},push-by-digest=true,name-canonical=true,push=true,store=true
 
+      # Under runner.temp, which the runner empties after every job. A fixed
+      # /tmp path survives on a self-hosted runner, and the manifest job would
+      # then pick up digests left by earlier builds.
       - name: Export digest
         run: |
-          mkdir -p /tmp/digests/${{ matrix.image_type.name }}
+          mkdir -p ${{ runner.temp }}/digests/${{ matrix.image_type.name }}
           digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${{ matrix.image_type.name }}/${digest#sha256:}"
+          touch "${{ runner.temp }}/digests/${{ matrix.image_type.name }}/${digest#sha256:}"
 
       - name: Upload digest
         uses: actions/upload-artifact@v7
         with:
           name: digests-${{ matrix.image_type.name }}-${{ env.PLATFORM_PAIR }}
-          path: /tmp/digests/${{ matrix.image_type.name }}/*
+          path: ${{ runner.temp }}/digests/${{ matrix.image_type.name }}/*
           retention-days: 1
 
   manifest:
@@ -140,7 +143,7 @@ jobs:
       - name: Download digests
         uses: actions/download-artifact@v8
         with:
-          path: /tmp/digests
+          path: ${{ runner.temp }}/digests
           pattern: digests-${{ matrix.image_type }}-*
           merge-multiple: true
 
@@ -174,7 +177,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and push manifest list
-        working-directory: /tmp/digests
+        working-directory: ${{ runner.temp }}/digests
         run: |
           tags=()
           while IFS= read -r tag; do
@@ -190,7 +193,7 @@ jobs:
 
       - name: Push tip tag
         if: github.ref == 'refs/heads/main'
-        working-directory: /tmp/digests
+        working-directory: ${{ runner.temp }}/digests
         run: |
           images=()
           for digest in *; do
