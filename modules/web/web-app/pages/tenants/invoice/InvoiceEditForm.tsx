@@ -75,7 +75,7 @@ const mapBillingInfoToAddress = (values: BillingInfoFormValues): Address | undef
     line2: values.line2 || undefined,
     city: values.city || undefined,
     country: values.country || undefined,
-    state: undefined,
+    state: values.state || undefined,
     zipCode: values.zipCode || undefined,
   });
 }
@@ -132,6 +132,7 @@ export const InvoiceEditForm: React.FC<InvoiceEditFormProps> = ({
       line1: invoice.customerDetails?.billingAddress?.line1 || '',
       line2: invoice.customerDetails?.billingAddress?.line2 || '',
       city: invoice.customerDetails?.billingAddress?.city || '',
+      state: invoice.customerDetails?.billingAddress?.state || '',
       zipCode: invoice.customerDetails?.billingAddress?.zipCode || '',
       country: invoice.customerDetails?.billingAddress?.country || undefined,
       vatNumber: invoice.customerDetails?.vatNumber || '',
@@ -428,6 +429,7 @@ export const InvoiceEditForm: React.FC<InvoiceEditFormProps> = ({
           line1: result.customer.billingAddress?.line1 || '',
           line2: result.customer.billingAddress?.line2 || '',
           city: result.customer.billingAddress?.city || '',
+          state: result.customer.billingAddress?.state || '',
           zipCode: result.customer.billingAddress?.zipCode || '',
           country: result.customer.billingAddress?.country || undefined,
           vatNumber: result.customer.vatNumber || '',
