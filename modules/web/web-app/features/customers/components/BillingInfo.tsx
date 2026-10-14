@@ -57,6 +57,7 @@ export const BillingInfo = ({
       line1: customer.billingAddress?.line1 || '',
       line2: customer.billingAddress?.line2 || '',
       city: customer.billingAddress?.city || '',
+      state: customer.billingAddress?.state || '',
       zipCode: customer.billingAddress?.zipCode || '',
       country: customer.billingAddress?.country,
       vatNumber: customer.vatNumber || '',
@@ -80,6 +81,7 @@ export const BillingInfo = ({
       line1: values.line1,
       line2: values.line2,
       city: values.city,
+      state: values.state,
       zipCode: values.zipCode,
       country: values.country,
     })

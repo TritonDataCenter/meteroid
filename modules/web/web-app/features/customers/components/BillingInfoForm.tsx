@@ -15,6 +15,7 @@ export const billingInfoSchema = z.object({
   line1: z.string().optional(),
   line2: z.string().optional(),
   city: z.string().optional(),
+  state: z.string().optional(),
   zipCode: z.string().optional(),
   country: z.string().optional(),
   vatNumber: z.string().optional(),
@@ -132,17 +133,24 @@ export const BillingInfoForm = ({
                 name="zipCode"
                 control={methods.control}
                 placeholder="Postal code"
-                className="rounded-none rounded-bl-md border-r-0 text-xs focus-visible:shadow-none"
+                className="rounded-none border-b-0 border-r-0 text-xs focus-visible:shadow-none"
                 onBlur={handleBlur}
               />
               <InputFormField
                 name="city"
                 control={methods.control}
                 placeholder="City"
-                className="rounded-none rounded-br-md text-xs focus-visible:shadow-none"
+                className="rounded-none border-b-0 text-xs focus-visible:shadow-none"
                 onBlur={handleBlur}
               />
             </div>
+            <InputFormField
+              name="state"
+              control={methods.control}
+              placeholder="State / province / region"
+              className="rounded-none rounded-b-md text-xs focus-visible:shadow-none"
+              onBlur={handleBlur}
+            />
           </div>
 
           {showTaxNumber ? (
