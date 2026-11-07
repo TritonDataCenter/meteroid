@@ -23,7 +23,11 @@ pub trait ApiTokensInterface {
     async fn find_api_tokens_by_tenant_id(&self, tenant_id: TenantId)
     -> StoreResult<Vec<ApiToken>>;
 
-    async fn get_api_token_by_id(&self, id: &ApiTokenId) -> StoreResult<ApiToken>;
+    async fn get_api_token_by_id(
+        &self,
+        tenant_id: TenantId,
+        id: &ApiTokenId,
+    ) -> StoreResult<ApiToken>;
 
     async fn get_api_token_by_id_for_validation(
         &self,
@@ -59,10 +63,14 @@ impl ApiTokensInterface for Store {
         Ok(api_tokens.into_iter().map(Into::into).collect())
     }
 
-    async fn get_api_token_by_id(&self, id: &ApiTokenId) -> StoreResult<ApiToken> {
+    async fn get_api_token_by_id(
+        &self,
+        tenant_id: TenantId,
+        id: &ApiTokenId,
+    ) -> StoreResult<ApiToken> {
         let mut conn = self.get_conn().await?;
 
-        let api_token = ApiTokenRow::find_by_id(&mut conn, id)
+        let api_token = ApiTokenRow::find_by_id(&mut conn, tenant_id, id)
             .await
             .map_err(|err| StoreError::DatabaseError(err.error))?;
 

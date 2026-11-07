@@ -80,12 +80,13 @@ impl ApiTokensService for ApiTokensServiceComponents {
         &self,
         request: Request<GetApiTokenByIdRequest>,
     ) -> Result<Response<GetApiTokenByIdResponse>, Status> {
+        let tenant_id = request.tenant()?;
         let req = request.into_inner();
 
         let token_id = common_domain::ids::ApiTokenId::from_proto(&req.id)?;
         let result = self
             .store
-            .get_api_token_by_id(&token_id)
+            .get_api_token_by_id(tenant_id, &token_id)
             .await
             .map_err(|e| {
                 ApiTokenApiError::StoreError(

@@ -23,11 +23,17 @@ impl ApiTokenRowNew {
 }
 
 impl ApiTokenRow {
-    pub async fn find_by_id(conn: &mut PgConn, param_id: &ApiTokenId) -> DbResult<ApiTokenRow> {
-        use crate::schema::api_token::dsl::{api_token, id};
+    pub async fn find_by_id(
+        conn: &mut PgConn,
+        param_tenant_id: TenantId,
+        param_id: &ApiTokenId,
+    ) -> DbResult<ApiTokenRow> {
+        use crate::schema::api_token::dsl::{api_token, id, tenant_id};
         use diesel_async::RunQueryDsl;
 
-        let query = api_token.filter(id.eq(param_id));
+        let query = api_token
+            .filter(id.eq(param_id))
+            .filter(tenant_id.eq(param_tenant_id));
 
         log::debug!("{}", debug_query::<diesel::pg::Pg, _>(&query));
 
