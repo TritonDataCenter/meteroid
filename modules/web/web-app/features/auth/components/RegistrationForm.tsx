@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 import { useZodForm } from '@/hooks/useZodForm'
 import { useQuery } from '@/lib/connectrpc'
+import { resolveSameOriginReturnUrl } from '@/lib/return-url'
 import { schemas } from '@/lib/schemas'
 import {
   getInviteDetails,
@@ -65,8 +66,9 @@ export const RegistrationForm = ({ invite }: { invite?: string }) => {
       inviteKey: invite,
     })
 
-    if (returnUrl && returnUrl.startsWith('/')) {
-      sessionStorage.setItem(RETURN_URL_KEY, returnUrl)
+    const safeReturnUrl = resolveSameOriginReturnUrl(returnUrl)
+    if (safeReturnUrl) {
+      sessionStorage.setItem(RETURN_URL_KEY, safeReturnUrl)
     }
 
     res.validationRequired

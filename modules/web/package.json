@@ -42,6 +42,7 @@
     "kill:ports": "kill-port --port 5173,8000",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
+    "test": "turbo run test",
     "prepare": "cd ../.. && husky install modules/web/.husky",
     "serve:db": "docker compose --profile dev -f docker/develop/docker-compose.yml up"
   },

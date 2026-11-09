@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useSession } from '@/features/auth/session'
 import { useZodForm } from '@/hooks/useZodForm'
 import { queryClient } from '@/lib/react-query'
+import { resolveSameOriginReturnUrl } from '@/lib/return-url'
 import { schemas } from '@/lib/schemas'
 import { INVITE_TOKEN_KEY } from '@/pages/invite/acceptInvite'
 import { getInstance } from '@/rpc/api/instance/v1/instance-InstanceService_connectquery'
@@ -56,11 +57,17 @@ export const ValidateEmailForm = () => {
 
     sessionStorage.removeItem(INVITE_TOKEN_KEY)
 
-    const pendingReturnUrl = sessionStorage.getItem(RETURN_URL_KEY)
+    const storedReturnUrl = sessionStorage.getItem(RETURN_URL_KEY)
     sessionStorage.removeItem(RETURN_URL_KEY)
 
-    // Navigate to login with returnUrl if available
-    const loginPath = pendingReturnUrl ? `/login?returnUrl=${encodeURIComponent(pendingReturnUrl)}` : '/login'
+    // Re-validated on the way out as well as on the way in: this value survived
+    // an email round-trip in session storage, where an older build or devtools
+    // could have put anything.
+    const pendingReturnUrl = resolveSameOriginReturnUrl(storedReturnUrl)
+
+    const loginPath = pendingReturnUrl
+      ? `/login?returnUrl=${encodeURIComponent(pendingReturnUrl)}`
+      : '/login'
     navigate(loginPath, {
       state: 'accountCreated',
     })

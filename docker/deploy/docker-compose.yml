@@ -268,6 +268,7 @@ services:
     environment:
       - VITE_METEROID_API_EXTERNAL_URL=${VITE_METEROID_API_EXTERNAL_URL:-http://localhost:50061}
       - VITE_METEROID_REST_API_EXTERNAL_URL=${VITE_METEROID_REST_API_EXTERNAL_URL:-http://localhost:8084}
+      - VITE_PORTAL_RETURN_URL_ALLOWLIST=${VITE_PORTAL_RETURN_URL_ALLOWLIST:-}
     networks:
       - meteroid_net
     logging: *logging
