@@ -65,6 +65,12 @@ jobs:
             --bin meteroid-scheduler \
             --bin metering-api
 
+      # pnpm's self-installer needs Node 20.11+, and some runners ship 18.
+      - name: Set up Node.js for pnpm
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
       # Third-party actions are pinned to an immutable commit here, unlike the
       # lint workflows. This job builds the binaries that get deployed, so a
       # moved tag on a third-party action would land straight in production.

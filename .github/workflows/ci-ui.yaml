@@ -26,7 +26,11 @@ jobs:
       TURBO_TELEMETRY_DISABLED: true
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      # pnpm's self-installer needs Node 20.11+, and some runners ship 18.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.6.0
       - name: Setup Node.js
