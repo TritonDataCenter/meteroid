@@ -70,7 +70,7 @@ impl AccountingInterface for Store {
         let tax_row: CustomTaxRow = tax.try_into()?;
 
         let updated_tax = tax_row
-            .upsert(&mut conn, tenant_id)
+            .update(&mut conn, tenant_id)
             .await
             .map_err(Into::<Report<StoreError>>::into)?;
 
