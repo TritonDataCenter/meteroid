@@ -23,6 +23,7 @@ use diesel_models::entitlements::{
 use diesel_models::enums::{EntitlementEntityTypeEnum, FeatureStatusEnum as DbFeatureStatusEnum};
 use diesel_models::plan_versions::PlanVersionRow;
 use diesel_models::plans::PlanRow;
+use diesel_models::products::ProductRow;
 use diesel_models::query::price_components::list_product_ids_for_plan_version;
 use diesel_models::quote_add_ons::QuoteAddOnRow;
 use diesel_models::quotes::QuoteComponentRow;
@@ -180,12 +181,33 @@ fn validate_value_matches_feature_type(
     }
 }
 
+/// A feature may only be attached to a product of its own tenant.
+async fn ensure_product_in_tenant(
+    conn: &mut PgConn,
+    tenant_id: TenantId,
+    product_id: Option<ProductId>,
+) -> StoreResult<()> {
+    let Some(product_id) = product_id else {
+        return Ok(());
+    };
+    ProductRow::find_by_id_and_tenant_id(conn, product_id, tenant_id)
+        .await
+        .map_err(|e| match e.error.current_context() {
+            diesel_models::errors::DatabaseError::NotFound => Report::new(
+                StoreError::InvalidArgument(format!("product {product_id} not found")),
+            ),
+            _ => e.into(),
+        })?;
+    Ok(())
+}
+
 #[async_trait::async_trait]
 impl EntitlementsInterface for Store {
     async fn create_feature(&self, feature: FeatureNew) -> StoreResult<Feature> {
         let mut conn = self.get_conn().await?;
         let entitlement_value = feature.entitlement.clone();
         let tenant_id = feature.tenant_id;
+        ensure_product_in_tenant(&mut conn, tenant_id, feature.product_id).await?;
         if let Some(value) = &entitlement_value {
             validate_value_matches_feature_type(value, &feature.feature_type)?;
         }
@@ -351,6 +373,7 @@ impl EntitlementsInterface for Store {
         update: FeatureUpdate,
     ) -> StoreResult<Feature> {
         let mut conn = self.get_conn().await?;
+        ensure_product_in_tenant(&mut conn, tenant_id, update.product_id.flatten()).await?;
 
         let patch = FeatureRowPatch {
             name: update.name,
