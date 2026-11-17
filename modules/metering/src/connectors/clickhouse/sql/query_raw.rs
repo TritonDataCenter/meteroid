@@ -110,7 +110,7 @@ pub fn query_meter_sql(params: QueryMeterParams, events_table: &str) -> Result<S
     subquery_binds.push(BindValue::I64(params.from.timestamp()));
 
     if let Some(to) = params.to {
-        subquery_conditions.push("timestamp <= toDateTime(?)".to_string());
+        subquery_conditions.push("timestamp < toDateTime(?)".to_string());
         subquery_binds.push(BindValue::I64(to.timestamp()));
     }
 
@@ -426,7 +426,7 @@ mod tests {
                 WHERE tenant_id = ?
                     AND code = ?
                     AND timestamp >= toDateTime(?)
-                    AND timestamp <= toDateTime(?)
+                    AND timestamp < toDateTime(?)
                     AND properties[?] != ''
                     AND isNotNull(toFloat64OrNull(properties[?]))
                 ORDER BY timestamp DESC
@@ -481,7 +481,7 @@ mod tests {
                 WHERE tenant_id = ?
                     AND code = ?
                     AND timestamp >= toDateTime(?)
-                    AND timestamp <= toDateTime(?)
+                    AND timestamp < toDateTime(?)
                 ORDER BY timestamp DESC
                 LIMIT 1 BY id, customer_id
             )
@@ -1006,7 +1006,7 @@ mod tests {
                 WHERE tenant_id = ?
                     AND code = ?
                     AND timestamp >= toDateTime(?)
-                    AND timestamp <= toDateTime(?)
+                    AND timestamp < toDateTime(?)
                 ORDER BY timestamp DESC
                 LIMIT 1 BY id, customer_id
             )

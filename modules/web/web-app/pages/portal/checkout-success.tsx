@@ -2,12 +2,13 @@ import { CheckCircle, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
+import { safeRedirectUrl } from '@/lib/utils/url'
 import { useForceTheme } from 'providers/ThemeProvider'
 
 export const PortalCheckoutSuccess = () => {
   useForceTheme('light')
   const [searchParams] = useSearchParams()
-  const returnUrl = searchParams.get('return_url')
+  const returnUrl = safeRedirectUrl(searchParams.get('return_url'))
   const [countdown, setCountdown] = useState(3)
 
   useEffect(() => {

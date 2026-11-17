@@ -23,7 +23,7 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake clang unzip libsasl2-dev
+        sudo apt-get install -y cmake clang unzip libsasl2-dev libpq-dev
         wget -q https://github.com/protocolbuffers/protobuf/releases/download/v21.8/protoc-21.8-linux-x86_64.zip
         unzip -q protoc*.zip
         sudo mv bin/protoc /usr/local/bin

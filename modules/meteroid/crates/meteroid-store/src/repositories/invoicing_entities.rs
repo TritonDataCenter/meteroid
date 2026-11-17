@@ -9,6 +9,7 @@ use crate::errors::StoreError;
 use crate::store::{PgConn, Store, StoreInternal};
 use common_domain::country::CountryCode;
 use common_domain::ids::{BaseId, InvoicingEntityId, OrganizationId, TenantId};
+use diesel_models::bank_accounts::BankAccountRow;
 use diesel_models::invoicing_entities::{
     InvoicingEntityProvidersRow, InvoicingEntityRow, InvoicingEntityRowPatch,
     InvoicingEntityRowProvidersPatch,
@@ -205,6 +206,12 @@ impl InvoicingEntityInterface for Store {
         tenant_id: TenantId,
     ) -> StoreResult<InvoicingEntityProviders> {
         let mut conn = self.get_conn().await?;
+
+        if let Some(bank_account_id) = invoicing_entity.bank_account_id.flatten() {
+            BankAccountRow::get_by_id(&mut conn, tenant_id, bank_account_id)
+                .await
+                .map_err(Into::<Report<StoreError>>::into)?;
+        }
 
         let row: InvoicingEntityRowProvidersPatch = invoicing_entity.into();
 

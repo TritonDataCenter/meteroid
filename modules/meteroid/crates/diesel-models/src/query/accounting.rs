@@ -51,6 +51,37 @@ impl CustomTaxRow {
             .into_db_result()
     }
 
+    /// Updates a tax rate owned by the tenant. A tax rate under another tenant's invoicing
+    /// entity is never matched, so the call fails with `NotFound`. The invoicing entity is not
+    /// changed.
+    pub async fn update(&self, conn: &mut PgConn, tenant_id: TenantId) -> DbResult<CustomTaxRow> {
+        use crate::schema::{custom_tax::dsl as ct_dsl, invoicing_entity::dsl as ie_dsl};
+        use diesel_async::RunQueryDsl;
+
+        let query = diesel::update(ct_dsl::custom_tax)
+            .filter(ct_dsl::id.eq(self.id))
+            .filter(
+                ct_dsl::invoicing_entity_id.eq_any(
+                    ie_dsl::invoicing_entity
+                        .filter(ie_dsl::tenant_id.eq(tenant_id))
+                        .select(ie_dsl::id),
+                ),
+            )
+            .set((
+                ct_dsl::name.eq(&self.name),
+                ct_dsl::tax_code.eq(&self.tax_code),
+                ct_dsl::rules.eq(&self.rules),
+            ));
+
+        log::debug!("{}", debug_query::<diesel::pg::Pg, _>(&query));
+
+        query
+            .get_result(conn)
+            .await
+            .attach("Error while updating custom_tax")
+            .into_db_result()
+    }
+
     pub async fn delete(
         conn: &mut PgConn,
         tax_id: CustomTaxId,
@@ -176,17 +207,23 @@ impl ProductAccountingWithTaxRow {
         conn: &mut PgConn,
         param_products_ids: Vec<ProductId>,
         param_invoicing_entity_id: InvoicingEntityId,
-        _tenant_id: TenantId,
+        tenant_id: TenantId,
     ) -> DbResult<Vec<ProductAccountingWithTaxRow>> {
         use crate::schema::custom_tax::dsl as ct_dsl;
+        use crate::schema::invoicing_entity::dsl as ie_dsl;
         use crate::schema::product_accounting::dsl as pa_dsl;
         use crate::schema::product_custom_tax::dsl as pct_dsl;
         use diesel_async::RunQueryDsl;
 
-        // Note: We intentionally skip the tenant subquery check here.
-        // The invoicing_entity_id is already validated by the caller
         let query = pa_dsl::product_accounting
             .filter(pa_dsl::invoicing_entity_id.eq(param_invoicing_entity_id))
+            .filter(
+                pa_dsl::invoicing_entity_id.eq_any(
+                    ie_dsl::invoicing_entity
+                        .filter(ie_dsl::tenant_id.eq(tenant_id))
+                        .select(ie_dsl::id),
+                ),
+            )
             .filter(pa_dsl::product_id.eq_any(&param_products_ids))
             .left_join(
                 pct_dsl::product_custom_tax.on(pa_dsl::product_id
