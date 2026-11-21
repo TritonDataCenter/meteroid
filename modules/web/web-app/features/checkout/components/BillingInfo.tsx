@@ -20,6 +20,7 @@ const billingInfoSchema = z.object({
   line1: z.string().optional(),
   line2: z.string().optional(),
   city: z.string().optional(),
+  state: z.string().optional(),
   zipCode: z.string().optional(),
   country: z.string().optional(),
   vatNumber: z.string().optional(),
@@ -62,6 +63,7 @@ export const BillingInfo = ({ customer, isEditing, setIsEditing }: BillingInfoPr
       line1: customer.billingAddress?.line1 || '',
       line2: customer.billingAddress?.line2 || '',
       city: customer.billingAddress?.city || '',
+      state: customer.billingAddress?.state || '',
       zipCode: customer.billingAddress?.zipCode || '',
       country: customer.billingAddress?.country,
       vatNumber: customer.vatNumber || '',
@@ -86,6 +88,7 @@ export const BillingInfo = ({ customer, isEditing, setIsEditing }: BillingInfoPr
       line1: values.line1,
       line2: values.line2,
       city: values.city,
+      state: values.state,
       zipCode: values.zipCode,
       country: values.country,
     })
@@ -197,15 +200,21 @@ export const BillingInfo = ({ customer, isEditing, setIsEditing }: BillingInfoPr
                 name="zipCode"
                 control={methods.control}
                 placeholder="Postal code"
-                className="rounded-none rounded-bl-md border-r-0 text-xs  focus-visible:shadow-none focus-visible:border-unset"
+                className="rounded-none border-b-0 border-r-0 text-xs  focus-visible:shadow-none focus-visible:border-unset"
               />
               <InputFormField
                 name="city"
                 control={methods.control}
                 placeholder="City"
-                className="rounded-none rounded-br-md text-xs  focus-visible:shadow-none focus-visible:border-unset"
+                className="rounded-none border-b-0 text-xs  focus-visible:shadow-none focus-visible:border-unset"
               />
             </div>
+            <InputFormField
+              name="state"
+              control={methods.control}
+              placeholder="State / province / region"
+              className="rounded-none rounded-b-md text-xs  focus-visible:shadow-none focus-visible:border-unset"
+            />
           </div>
 
           {showTaxNumber ? (
